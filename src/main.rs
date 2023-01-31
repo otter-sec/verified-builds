@@ -1,4 +1,11 @@
-use endpoints::{health, index, verify};
+#![feature(exit_status_error)]
+
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
+
+use endpoints::{buffer_hash, dockerfile, health, index, program_hash, verify};
 use warp::Filter;
 
 mod endpoints;
@@ -10,9 +17,23 @@ async fn main() {
 
     let health = warp::path("health").and(warp::path::end()).and_then(health);
 
-    let verify = warp::path("verify").and(warp::query()).and_then(verify);
+    let cache = Arc::new(RwLock::new(HashMap::new()));
+    let verify = warp::path("verify")
+        .and(warp::query())
+        .and_then(move |x| verify(x, cache.clone()));
 
-    let routes = index.or(health).or(verify);
+    let routes = index
+        .or(health)
+        .or(verify)
+        .or(warp::path("dockerfile")
+            .and(warp::query())
+            .and_then(dockerfile))
+        .or(warp::path("program_hash")
+            .and(warp::query())
+            .and_then(program_hash))
+        .or(warp::path("buffer_hash")
+            .and(warp::query())
+            .and_then(buffer_hash));
 
     warp::serve(routes).run(([127, 0, 0, 1], 3000)).await;
 }
